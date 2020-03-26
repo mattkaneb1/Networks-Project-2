@@ -12,12 +12,12 @@ import java.util.Date;
 // =============================================================================
 /**
  * @file   PARDataLinkLayer.java
- * @author Scott F. Kaplan (sfkaplan@cs.amherst.edu)
+ * @author Matt Kaneb & Chase Yager
  * @date   February 2020
  *
  * A data link layer that uses start/stop tags and byte packing to frame the
- * data, and that performs error management with a parity bit.  It employs no
- * flow control; damaged frames are dropped.
+ * data, and that performs error management with a parity bit. For flow control,
+ * it utilizes a stop & wait protocol; damaged frames are dropped.
  */
 public class PARDataLinkLayer extends DataLinkLayer {
 // =============================================================================
@@ -172,9 +172,15 @@ public class PARDataLinkLayer extends DataLinkLayer {
      * @param frame The framed data that was transmitted.
      */ 
     protected void finishFrameSend (Queue<Byte> frame) {
-    	Date d = new Date();
-    	this.reSend = frame;
+        Date d = new Date();
+    	
+        // Stores this frame in case it needs to be resent
+        this.reSend = frame;
+
+        // Grabs the timestamp of when this frame was sent 
     	this.timeSinceSent = d.getTime();
+
+        // Reports that the host is waiting for acknowledgement
     	this.lookingForACK = true;
         
     } // finishFrameSend ()
@@ -192,10 +198,17 @@ public class PARDataLinkLayer extends DataLinkLayer {
      */
     protected void finishFrameReceive (Queue<Byte> frame) {
         
+        // In this protocol, if the host is looking for an ACK,
+        // anything it recieves is an ACK, so upon recieving an ACK
+        // it reports that it is no longer looking for an ACK
         if (this.lookingForACK){
-        	System.out.println("-----------------RECEIVING ACK-----------------");
         	this.lookingForACK =false;
-        } else{
+        } 
+
+        // If the host is not looking for an ACK
+        // the host delivers the frame to the client 
+        // and sends an ACK 
+        else{
 	        // Deliver frame to the client.
 	        byte[] deliverable = new byte[frame.size()];
 	        for (int i = 0; i < deliverable.length; i += 1) {
@@ -205,7 +218,6 @@ public class PARDataLinkLayer extends DataLinkLayer {
 	        client.receive(deliverable);
 
 	        // send ACK
-	        System.out.println("-----------------SENDING ACK-----------------");
 	        Queue<Byte> a =  new LinkedList<Byte>();
 	        a.add((byte) 'a');
 
@@ -246,6 +258,8 @@ public class PARDataLinkLayer extends DataLinkLayer {
      * @return the frame of bytes transmitted.
      */
     protected Queue<Byte> sendNextFrame () {
+        // Only sends frames if ACK has 
+        // been received for the last frame 
     	if (lookingForACK)
     		return null;
     	else
@@ -312,16 +326,19 @@ public class PARDataLinkLayer extends DataLinkLayer {
     /** The escape tag. */
     private final byte escapeTag = (byte)'\\';
 
+
+    /** True if host has yet to receive ACK */
     private boolean lookingForACK = false;
 
+    /** How long it has been since sending a frame */
     private long timeSinceSent;
 
+    /** The most recently sent frame, stored in case of resend */
     private Queue<Byte> reSend;
 
+    /** How long in milliseconds will trigger a timeout */
     private double timeoutTime = 5000;
     // =========================================================================
-
-
 
 
 // =============================================================================
