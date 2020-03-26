@@ -1,0 +1,1 @@
+This assignment is an extension of Project 1, but the code has undergone enough transfor- mation that your solutions to that project won’t be something that you want to copy-and- paste. Instead, you will be given an existing ParityDataLinkLayer from which to work, and to which you need to add flow control capabilities.

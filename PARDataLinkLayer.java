@@ -5,6 +5,7 @@ import java.util.Arrays;
 import java.util.Iterator;
 import java.util.LinkedList;
 import java.util.Queue;
+import java.util.Date;
 // =============================================================================
 
 
@@ -171,8 +172,10 @@ public class PARDataLinkLayer extends DataLinkLayer {
      * @param frame The framed data that was transmitted.
      */ 
     protected void finishFrameSend (Queue<Byte> frame) {
-
-        // COMPLETE ME WITH FLOW CONTROL
+    	Date d = new Date();
+    	this.reSend = frame;
+    	this.timeSinceSent = d.getTime();
+    	this.lookingForACK = true;
         
     } // finishFrameSend ()
     // =========================================================================
@@ -188,17 +191,26 @@ public class PARDataLinkLayer extends DataLinkLayer {
      * @param frame The frame of bytes received.
      */
     protected void finishFrameReceive (Queue<Byte> frame) {
-
-        // COMPLETE ME WITH FLOW CONTROL
         
-        // Deliver frame to the client.
-        byte[] deliverable = new byte[frame.size()];
-        for (int i = 0; i < deliverable.length; i += 1) {
-            deliverable[i] = frame.remove();
-        }
+        if (this.lookingForACK){
+        	System.out.println("-----------------RECEIVING ACK-----------------");
+        	this.lookingForACK =false;
+        } else{
+	        // Deliver frame to the client.
+	        byte[] deliverable = new byte[frame.size()];
+	        for (int i = 0; i < deliverable.length; i += 1) {
+	            deliverable[i] = frame.remove();
+	        }
 
-        client.receive(deliverable);
-        
+	        client.receive(deliverable);
+
+	        // send ACK
+	        System.out.println("-----------------SENDING ACK-----------------");
+	        Queue<Byte> a =  new LinkedList<Byte>();
+	        a.add((byte) 'a');
+
+	        transmit(createFrame(a));
+	    }
     } // finishFrameReceive ()
     // =========================================================================
 
@@ -211,11 +223,36 @@ public class PARDataLinkLayer extends DataLinkLayer {
      * time has passed since some kind of response is expected.
      */
     protected void checkTimeout () {
-
-        // COMPLETE ME WITH FLOW CONTROL
-
+    	long now;
+    	Date d = new Date();
+        if(lookingForACK){
+        	now = d.getTime();
+        	if ( now - timeSinceSent >= timeoutTime){
+        		transmit(reSend);
+        		this.timeSinceSent = now;
+        	}
+        }
     } // checkTimeout ()
     // =========================================================================
+
+
+
+
+    // =========================================================================
+    /**
+     * Extract the next frame-worth of data from the sending buffer, frame it,
+     * and then send it.
+     *
+     * @return the frame of bytes transmitted.
+     */
+    protected Queue<Byte> sendNextFrame () {
+    	if (lookingForACK)
+    		return null;
+    	else
+    		return super.sendNextFrame();
+    }// sendNextFrame ()
+    // =========================================================================
+
 
 
 
@@ -274,6 +311,14 @@ public class PARDataLinkLayer extends DataLinkLayer {
 
     /** The escape tag. */
     private final byte escapeTag = (byte)'\\';
+
+    private boolean lookingForACK = false;
+
+    private long timeSinceSent;
+
+    private Queue<Byte> reSend;
+
+    private double timeoutTime = 5000;
     // =========================================================================
 
 
