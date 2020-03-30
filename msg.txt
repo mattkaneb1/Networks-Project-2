@@ -1,1 +1,19 @@
-This assignment is an extension of Project 1, but the code has undergone enough transfor- mation that your solutions to that project won’t be something that you want to copy-and- paste. Instead, you will be given an existing ParityDataLinkLayer from which to work, and to which you need to add flow control capabilities.
+Amherst College
+Spring 2020
+Department of Economics
+Contact info:
+Economics 360: Econometrics Updated course plan for remote learning
+Professor Caroline Theoharides
+Email: ctheoharides@amherst.edu
+Office hours: Monday, 8:30-9:30pm; Wednesday, 12:30-1:30pm (Eastern daylight time)
+Schedule:
+Because we are spread across many time zones, and many of you now have responsibilities for younger siblings and older family members, I have opted to continue our course in an asynchronous fashion. Each week, I will record short videos for each of our classes. For each hour and twenty minute class, there will be two to three 20 minute videos. Videos for each week will be posted over the previous weekend. I will also post a PDF of the slides I discuss on the video.
+Required materials for the course:
+***TEXTBOOK AVAILABLE UNDER E-RESERVES ON MOODLE***James H. Stock and Marc W. Watson, Introduction to Econometrics, 4th edition. You may also use the 3rd edition of this textbook.
+STATA. The study of statistics and econometrics is closely linked to and aided by the use of statistical computer software. We will use STATA extensively in the class. Amherst has a site license for Stata, and instructions for downloading Stata are on our course Moodle site.
+Grading:
+Due to the unique nature of this semester and the challenges of remote learning, I have opted to not have a second midterm. Instead, your problem set grades will count for the second midterm (problem sets are now worth 37.5% of your grade rather than 15%).
+Final course grades will be based on problem sets (37.5%), one midterm (22.5%), a final exam (35%), and class attendance and participation (5%).
+Because this is a change from the original syllabus, I will calculate your final grade based on one of two options, and I will choose whichever option results in the higher final grade for you. Option 1: 15% of your grade is based on the average of all of your problem sets. 22.5% of your grade, which replaces midterm 2, is based on problem sets #5-10. Option 2: 37.5% of your grade is based on your total problem set average.
+Exams:
+The final exam will be given on the last day of class. You may take it anytime on April 29th.

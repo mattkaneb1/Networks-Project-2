@@ -13,7 +13,7 @@ import java.lang.reflect.InvocationTargetException;
 // =============================================================================
 /**
  * @file   DataLinkLayer.java
- * @author chase 
+ * @author Scott Kaplan
  * @date   March 2020.
  *
  * A data link layer accepts a string of bytes, divides it into frames, adds

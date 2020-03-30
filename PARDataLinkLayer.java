@@ -33,6 +33,10 @@ public class PARDataLinkLayer extends DataLinkLayer {
      */
     protected Queue<Byte> createFrame (Queue<Byte> data) {
 
+    // ID added here so that it will be accounted for
+    // when the parity is calculated
+    data.add(id);
+
 	// Calculate the parity.
 	byte parity = calculateParity(data);
 	
@@ -147,15 +151,27 @@ public class PARDataLinkLayer extends DataLinkLayer {
 	if (debug) {
 	    System.out.println("PARDataLinkLayer.processFrame(): Got whole frame!");
 	}
+
+    // The last byte inside the frame is the parity.  Compare it to a
+    // recalculation.
+    byte receivedParity   = extractedBytes.remove(extractedBytes.size() - 1);
+    byte calculatedParity = calculateParity(extractedBytes);
+    if (receivedParity != calculatedParity) {
+        System.out.printf("PARDataLinkLayer.processFrame():\tDamaged frame\n");
+        return null;
+    }
+
+    // The second to last byte is the id of the frame. If it does not match the id the
+    // that is expected return null
+    byte receivedID = extractedBytes.remove(extractedBytes.size() - 1);
+    if (receivedID != this.id){
+        System.out.printf("PARDataLinkLayer.processFrame():\tWrong ID\n");
         
-	// The final byte inside the frame is the parity.  Compare it to a
-	// recalculation.
-	byte receivedParity   = extractedBytes.remove(extractedBytes.size() - 1);
-	byte calculatedParity = calculateParity(extractedBytes);
-	if (receivedParity != calculatedParity) {
-	    System.out.printf("PARDataLinkLayer.processFrame():\tDamaged frame\n");
-	    return null;
-	}
+        sendACK(receivedID);
+        System.out.println("ACK Re-Sent");
+        return null;
+    }
+
 
 	return extractedBytes;
 
@@ -197,11 +213,13 @@ public class PARDataLinkLayer extends DataLinkLayer {
      * @param frame The frame of bytes received.
      */
     protected void finishFrameReceive (Queue<Byte> frame) {
-        
         // In this protocol, if the host is looking for an ACK,
         // anything it recieves is an ACK, so upon recieving an ACK
-        // it reports that it is no longer looking for an ACK
+        // it reports that it is no longer looking for an ACK. Note: 
+        // processFrame() has already checked if this frame has 
+        // the right ID
         if (this.lookingForACK){
+            System.out.println("ACK Recieved");
         	this.lookingForACK =false;
         } 
 
@@ -218,14 +236,16 @@ public class PARDataLinkLayer extends DataLinkLayer {
 	        client.receive(deliverable);
 
 	        // send ACK
-	        Queue<Byte> a =  new LinkedList<Byte>();
-	        a.add((byte) 'a');
-
-	        transmit(createFrame(a));
+	        sendACK(this.id);
+            System.out.println("ACK Sent");
 	    }
+        if(this.id == (byte)'0')
+            this.id = (byte) '1';
+        else
+            this.id = (byte) '0';
+
     } // finishFrameReceive ()
     // =========================================================================
-
 
 
     // =========================================================================
@@ -246,6 +266,28 @@ public class PARDataLinkLayer extends DataLinkLayer {
         }
     } // checkTimeout ()
     // =========================================================================
+
+
+    // =========================================================================
+    /**
+     * Given an ID, this method sends an acknowledgement of the frame with that ID
+     * to the other host     
+     */
+    protected void sendACK(byte identify){
+        Queue<Byte> data = new LinkedList<Byte>();
+        data.add(identify);
+        byte parity = calculateParity(data);
+
+        //Create a frame containing just the ID of the ACK
+        Queue<Byte> framedACK = new LinkedList<Byte>();
+        framedACK.add(startTag);
+        framedACK.add(identify);
+        framedACK.add(parity);
+        framedACK.add(stopTag);
+
+        // Send the ACK
+        transmit(framedACK);
+    }
 
 
 
@@ -326,7 +368,6 @@ public class PARDataLinkLayer extends DataLinkLayer {
     /** The escape tag. */
     private final byte escapeTag = (byte)'\\';
 
-
     /** True if host has yet to receive ACK */
     private boolean lookingForACK = false;
 
@@ -337,7 +378,11 @@ public class PARDataLinkLayer extends DataLinkLayer {
     private Queue<Byte> reSend;
 
     /** How long in milliseconds will trigger a timeout */
-    private double timeoutTime = 5000;
+    private double timeoutTime = 2000;
+
+    /** The ID of the frame being expected or sent */
+    private byte id = (byte) '0';
+
     // =========================================================================
 
 
