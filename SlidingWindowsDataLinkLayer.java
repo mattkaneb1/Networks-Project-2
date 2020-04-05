@@ -11,15 +11,15 @@ import java.util.Date;
 
 // =============================================================================
 /**
- * @file   PARDataLinkLayer.java
+ * @file   SlidingWindowsDataLinkLayer.java
  * @author Matt Kaneb & Chase Yager
  * @date   February 2020
  *
  * A data link layer that uses start/stop tags and byte packing to frame the
  * data, and that performs error management with a parity bit. For flow control,
- * it utilizes a stop & wait protocol; damaged frames are dropped.
+ * it utilizes a sliding windows protocol; damaged frames are dropped.
  */
-public class PARDataLinkLayer extends DataLinkLayer {
+public class SlidingWindowsDataLinkLayer extends DataLinkLayer {
 // =============================================================================
 
 
@@ -35,7 +35,19 @@ public class PARDataLinkLayer extends DataLinkLayer {
 
     // ID added here so that it will be accounted for
     // when the parity is calculated
-    data.add(id);
+    byte idAsByte;
+    if( this.id == 0)
+        idAsByte =(byte) '0';
+    else if ( this.id == 1)
+        idAsByte =(byte) '1';
+    else if ( this.id == 2)
+        idAsByte =(byte) '2';
+    else
+        idAsByte =(byte) '3';
+    data.add(idAsByte);
+    System.out.println("Sending Frame # " + id);
+    this.id = (this.id+1)%4;
+
 
 	// Calculate the parity.
 	byte parity = calculateParity(data);
@@ -149,7 +161,7 @@ public class PARDataLinkLayer extends DataLinkLayer {
 	}
 
 	if (debug) {
-	    System.out.println("PARDataLinkLayer.processFrame(): Got whole frame!");
+	    System.out.println("SlidingWindowsDataLinkLayer.processFrame(): Got whole frame!");
 	}
 
     // The last byte inside the frame is the parity.  Compare it to a
@@ -157,22 +169,78 @@ public class PARDataLinkLayer extends DataLinkLayer {
     byte receivedParity   = extractedBytes.remove(extractedBytes.size() - 1);
     byte calculatedParity = calculateParity(extractedBytes);
     if (receivedParity != calculatedParity) {
-        System.out.printf("PARDataLinkLayer.processFrame():\tDamaged frame\n");
+        System.out.printf("SlidingWindowsDataLinkLayer.processFrame():\tDamaged frame\n");
         return null;
     }
 
-    // The second to last byte is the id of the frame. If it does not match the id the
-    // that is expected return null
+
+    // The second to last byte is the id of the frame. If it does fall within the window
+    // of acceptable IDs then return null
     byte receivedID = extractedBytes.remove(extractedBytes.size() - 1);
-    if (receivedID != this.id){
-        System.out.printf("PARDataLinkLayer.processFrame():\tWrong ID\n");
-        
-        sendACK(receivedID);
-        System.out.println("ACK Re-Sent");
-        return null;
+    System.out.printf("Received ID # %c\n",receivedID);
+    byte idAsByte;
+    int ident;
+    if (leadingHand<trailingHand){
+        if (!( (Character.getNumericValue(receivedID) >= trailingHand) ||
+               (Character.getNumericValue(receivedID) == leadingHand)  ||
+               (Character.getNumericValue(receivedID) == 0))){
+
+            System.out.printf("SlidingWindowsDataLinkLayer.processFrame():\tWrong ID\n");
+
+            System.out.println("Expecting ID between" + trailingHand + " and " + leadingHand);
+
+            ident = (Character.getNumericValue(receivedID)+3)%4;
+                if( ident == 0)
+                    idAsByte =(byte) '0';
+                else if ( ident == 1)
+                    idAsByte =(byte) '1';
+                else if ( ident == 2)
+                    idAsByte =(byte) '2';
+                else
+                    idAsByte =(byte) '3';
+            sendACK(idAsByte);
+            System.out.printf("Re-Sending ACK # %c\n",idAsByte);
+            return null;
+        }
+    } else if (leadingHand>trailingHand){
+        if (!( (Character.getNumericValue(receivedID) >= trailingHand) ||
+               (Character.getNumericValue(receivedID) <= leadingHand))      ){
+
+            System.out.printf("SlidingWindowsDataLinkLayer.processFrame():\tWrong ID\n");
+
+            System.out.println("Expecting IDs between " + trailingHand + " and " + leadingHand);
+            ident = (Character.getNumericValue(receivedID)+3)%4;
+                if( ident == 0)
+                    idAsByte =(byte) '0';
+                else if ( ident == 1)
+                    idAsByte =(byte) '1';
+                else if ( ident == 2)
+                    idAsByte =(byte) '2';
+                else
+                    idAsByte =(byte) '3';
+            sendACK(idAsByte);
+            System.out.printf("Re-Sending ACK # %c\n",idAsByte);
+            return null;
+        }
+    } else{
+        if (!(Character.getNumericValue(receivedID) == trailingHand)){
+            System.out.printf("SlidingWindowsDataLinkLayer.processFrame():\tWrong ID\n");
+
+            System.out.println("Expecting IDs between " + trailingHand + " and " + leadingHand);
+            ident = (Character.getNumericValue(receivedID)+3)%4;
+                if( ident == 0)
+                    idAsByte =(byte) '0';
+                else if ( ident == 1)
+                    idAsByte =(byte) '1';
+                else if ( ident == 2)
+                    idAsByte =(byte) '2';
+                else
+                    idAsByte =(byte) '3';
+            sendACK(idAsByte);
+            System.out.printf("Re-Sending ACK # %c\n",idAsByte);
+            return null;
+        }
     }
-
-
 	return extractedBytes;
 
     } // processFrame ()
@@ -191,13 +259,13 @@ public class PARDataLinkLayer extends DataLinkLayer {
         Date d = new Date();
     	
         // Stores this frame in case it needs to be resent
-        this.reSend = frame;
+        this.reSend.add((LinkedList) frame);
 
         // Grabs the timestamp of when this frame was sent 
-    	this.timeSinceSent = d.getTime();
+    	this.timeSinceSent.add(d.getTime());
 
         // Reports that the host is waiting for acknowledgement
-    	this.lookingForACK = true;
+    	this.lookingForACKs = true;
         
     } // finishFrameSend ()
     // =========================================================================
@@ -218,9 +286,13 @@ public class PARDataLinkLayer extends DataLinkLayer {
         // it reports that it is no longer looking for an ACK. Note: 
         // processFrame() has already checked if this frame has 
         // the right ID
-        if (this.lookingForACK){
-            System.out.println("ACK Recieved");
-        	this.lookingForACK =false;
+        if (this.lookingForACKs){
+            this.trailingHand = (this.trailingHand+1)%4;
+
+            this.reSend.remove();
+            this.timeSinceSent.remove();
+            if(this.reSend.isEmpty())
+                this.lookingForACKs = false;
         } 
 
         // If the host is not looking for an ACK
@@ -234,17 +306,24 @@ public class PARDataLinkLayer extends DataLinkLayer {
 	        }
 
 	        client.receive(deliverable);
+            this.leadingHand = (this.leadingHand+1)%4;
 
 	        // send ACK
-	        sendACK(this.id);
-            System.out.println("ACK Sent");
-	    }
-        // Once ACK has been sent/received , switch ID . 
-        if(this.id == (byte)'0')
-            this.id = (byte) '1';
-        else
-            this.id = (byte) '0';
+            byte ack;
+            if( this.id == 0)
+                ack =(byte) '0';
+            else if ( this.id == 1)
+                ack =(byte) '1';
+            else if ( this.id == 2)
+                ack =(byte) '2';
+            else
+                ack =(byte) '3';
+	        sendACK(ack);
+            this.trailingHand = (this.trailingHand+1)%4;
+            System.out.printf("Sending ACK # %c\n",ack);
+            this.id = (this.id+1)%4;
 
+	    }
     } // finishFrameReceive ()
     // =========================================================================
 
@@ -258,11 +337,14 @@ public class PARDataLinkLayer extends DataLinkLayer {
     protected void checkTimeout () {
     	long now;
     	Date d = new Date();
-        if(lookingForACK){
+        if(!reSend.isEmpty()){
         	now = d.getTime();
-        	if ( now - timeSinceSent >= timeoutTime){
-        		transmit(reSend);
-        		this.timeSinceSent = now;
+        	if ( now - timeSinceSent.peek() >= timeoutTime){
+                timeSinceSent.remove();
+                this.reSend.addFirst(this.reSend.peek());
+        		this.timeSinceSent.addFirst(now);
+                System.out.println("Re-Sent Frame");
+                transmit(convertLLtoQueue(reSend.remove()));
         	}
         }
     } // checkTimeout ()
@@ -288,7 +370,8 @@ public class PARDataLinkLayer extends DataLinkLayer {
 
         // Send the ACK
         transmit(framedACK);
-    }
+    } // sendACK ()
+    // =========================================================================
 
 
 
@@ -301,15 +384,16 @@ public class PARDataLinkLayer extends DataLinkLayer {
      * @return the frame of bytes transmitted.
      */
     protected Queue<Byte> sendNextFrame () {
-        // Only sends frames if ACK has 
-        // been received for the last frame 
-    	if (lookingForACK)
-    		return null;
-    	else
-    		return super.sendNextFrame();
+        // Only sends frames if id is within the sliding window range
+    	if(Math.abs(this.leadingHand - this.trailingHand) < 2 ){
+    		this.leadingHand=(this.leadingHand+1)%4;
+            return super.sendNextFrame();
+        }
+    	else{
+            return null;
+        }
     }// sendNextFrame ()
     // =========================================================================
-
 
 
 
@@ -356,6 +440,24 @@ public class PARDataLinkLayer extends DataLinkLayer {
     // =========================================================================
 
 
+    // =========================================================================
+    /**
+     * I wanted to store frames to be resent in a queue of byte queues but was 
+     * unable to figure out how/ dont think you can, so I stored them in a 
+     * linked list of byte linked lists and wrote this to convert the byte linked lists
+     * into queues so they can be used by the transmit() method. 
+     *
+     * @param index The index of the position up to which the bytes are to be
+     *              removed.
+     */
+    private Queue<Byte> convertLLtoQueue(LinkedList<Byte> frame){
+        Queue<Byte> f = new LinkedList<Byte>();
+
+        while(!frame.isEmpty()){
+            f.add(frame.remove());
+        }
+        return f;
+    }
 
     // =========================================================================
     // DATA MEMBERS
@@ -370,23 +472,29 @@ public class PARDataLinkLayer extends DataLinkLayer {
     private final byte escapeTag = (byte)'\\';
 
     /** True if host has yet to receive ACK */
-    private boolean lookingForACK = false;
+    private boolean lookingForACKs = false;
 
     /** How long it has been since sending a frame */
-    private long timeSinceSent;
+    private LinkedList<Long> timeSinceSent = new LinkedList<Long>();
 
-    /** The most recently sent frame, stored in case of resend */
-    private Queue<Byte> reSend;
+    /** The most recently sent frames, stored in case of resend */
+    private LinkedList<LinkedList<Byte>> reSend = new LinkedList<LinkedList<Byte>>();
 
     /** How long in milliseconds will trigger a timeout */
     private double timeoutTime = 2000;
 
     /** The ID of the frame being expected or sent */
-    private byte id = (byte) '0';
+    private int id = 0;
+
+    private int leadingHand = 0;
+
+    private int trailingHand = 0;
+
+
 
     // =========================================================================
 
 
 // =============================================================================
-} // class PARDataLinkLayer
+} // class SlidingWindowsDataLinkLayer
 // =============================================================================
