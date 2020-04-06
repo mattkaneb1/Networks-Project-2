@@ -214,7 +214,8 @@ public class SlidingWindowsDataLinkLayer extends DataLinkLayer {
                     idAsByte =(byte) '3';
             sendACK(idAsByte);
             System.out.printf("Re-Sending ACK # %c\n",idAsByte);
-        } else if (receivedIDasInt < trailingHand)
+            return null;
+        } else if (receivedIDasInt > trailingHand)
             return null;
     }
 	return extractedBytes;
