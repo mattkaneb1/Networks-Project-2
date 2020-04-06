@@ -215,8 +215,10 @@ public class SlidingWindowsDataLinkLayer extends DataLinkLayer {
             sendACK(idAsByte);
             System.out.printf("Re-Sending ACK # %c\n",idAsByte);
             return null;
-        } else if (receivedIDasInt > trailingHand)
+        } else if (receivedIDasInt > trailingHand){
+            System.out.println("Dropping Frame");
             return null;
+        }
     }
 	return extractedBytes;
     } // processFrame ()
@@ -235,7 +237,7 @@ public class SlidingWindowsDataLinkLayer extends DataLinkLayer {
         Date d = new Date();
     	
         // Stores this frame in case it needs to be resent
-        this.reSend.add((LinkedList) frame);
+        this.reSend.add(convertQueuetoLL(frame));
 
         // Grabs the timestamp of when this frame was sent 
     	this.timeSinceSent.add(d.getTime());
@@ -313,15 +315,17 @@ public class SlidingWindowsDataLinkLayer extends DataLinkLayer {
     protected void checkTimeout () {
     	long now;
     	Date d = new Date();
-        if(!reSend.isEmpty()){
+        LinkedList<Byte> r;
+        if(!this.reSend.isEmpty()){
         	now = d.getTime();
         	if ( now - timeSinceSent.peek() >= timeoutTime){
                 timeSinceSent.remove();
-                this.reSend.addFirst(this.reSend.peek());
+                r = this.reSend.remove();
+                this.reSend.addFirst(r);
         		this.timeSinceSent.addFirst(now);
                 System.out.println("Re-Sent Frame");
-                transmit(convertLLtoQueue(reSend.remove()));
-        	}
+                transmit(convertLLtoQueue(r));
+            }
         }
     } // checkTimeout ()
     // =========================================================================
@@ -433,6 +437,16 @@ public class SlidingWindowsDataLinkLayer extends DataLinkLayer {
             f.add(frame.remove());
         }
         return f;
+    }
+
+
+    private LinkedList<Byte> convertQueuetoLL(Queue<Byte> frame){
+        LinkedList<Byte> f = new LinkedList<Byte> ();
+        while(!frame.isEmpty()){
+            f.add(frame.remove());
+        }
+        return f;
+
     }
 
     // =========================================================================
