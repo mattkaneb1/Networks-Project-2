@@ -180,53 +180,29 @@ public class SlidingWindowsDataLinkLayer extends DataLinkLayer {
     System.out.printf("Received ID # %c\n",receivedID);
     byte idAsByte;
     int ident;
+    int receivedIDasInt = (int)Character.getNumericValue(receivedID);
     if (leadingHand<trailingHand){
-        if (!( (Character.getNumericValue(receivedID) >= trailingHand) ||
-               (Character.getNumericValue(receivedID) == leadingHand)  ||
-               (Character.getNumericValue(receivedID) == 0))){
+        if (!( (receivedIDasInt >= trailingHand) ||
+               (receivedIDasInt == leadingHand)  ||
+               (receivedIDasInt == 0))){
 
             System.out.printf("SlidingWindowsDataLinkLayer.processFrame():\tWrong ID\n");
-
             System.out.println("Expecting ID between" + trailingHand + " and " + leadingHand);
-
-            ident = (Character.getNumericValue(receivedID)+3)%4;
-                if( ident == 0)
-                    idAsByte =(byte) '0';
-                else if ( ident == 1)
-                    idAsByte =(byte) '1';
-                else if ( ident == 2)
-                    idAsByte =(byte) '2';
-                else
-                    idAsByte =(byte) '3';
-            sendACK(idAsByte);
-            System.out.printf("Re-Sending ACK # %c\n",idAsByte);
             return null;
         }
     } else if (leadingHand>trailingHand){
-        if (!( (Character.getNumericValue(receivedID) >= trailingHand) ||
-               (Character.getNumericValue(receivedID) <= leadingHand))      ){
+        if (!( (receivedIDasInt >= trailingHand) ||
+               (receivedIDasInt <= leadingHand))      ){
 
             System.out.printf("SlidingWindowsDataLinkLayer.processFrame():\tWrong ID\n");
-
+            
             System.out.println("Expecting IDs between " + trailingHand + " and " + leadingHand);
-            ident = (Character.getNumericValue(receivedID)+3)%4;
-                if( ident == 0)
-                    idAsByte =(byte) '0';
-                else if ( ident == 1)
-                    idAsByte =(byte) '1';
-                else if ( ident == 2)
-                    idAsByte =(byte) '2';
-                else
-                    idAsByte =(byte) '3';
-            sendACK(idAsByte);
-            System.out.printf("Re-Sending ACK # %c\n",idAsByte);
             return null;
         }
     } else{
-        if (!(Character.getNumericValue(receivedID) == trailingHand)){
+        if (receivedIDasInt < trailingHand){
             System.out.printf("SlidingWindowsDataLinkLayer.processFrame():\tWrong ID\n");
-
-            System.out.println("Expecting IDs between " + trailingHand + " and " + leadingHand);
+            System.out.println("Expecting ID # " + trailingHand);
             ident = (Character.getNumericValue(receivedID)+3)%4;
                 if( ident == 0)
                     idAsByte =(byte) '0';
@@ -238,11 +214,10 @@ public class SlidingWindowsDataLinkLayer extends DataLinkLayer {
                     idAsByte =(byte) '3';
             sendACK(idAsByte);
             System.out.printf("Re-Sending ACK # %c\n",idAsByte);
+        } else if (receivedIDasInt < trailingHand)
             return null;
-        }
     }
 	return extractedBytes;
-
     } // processFrame ()
     // =========================================================================
 
@@ -291,7 +266,7 @@ public class SlidingWindowsDataLinkLayer extends DataLinkLayer {
 
             this.reSend.remove();
             this.timeSinceSent.remove();
-            if(this.reSend.isEmpty())
+            if(this.reSend.isEmpty() && this.sendBuffer.isEmpty())
                 this.lookingForACKs = false;
         } 
 
