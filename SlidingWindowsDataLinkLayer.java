@@ -200,22 +200,15 @@ public class SlidingWindowsDataLinkLayer extends DataLinkLayer {
             return null;
         }
     } else{
-        if (receivedIDasInt < trailingHand){
+        if ( (receivedIDasInt+4) < (trailingHand+4)){
             System.out.printf("SlidingWindowsDataLinkLayer.processFrame():\tWrong ID\n");
             System.out.println("Expecting ID # " + trailingHand);
-            ident = (Character.getNumericValue(receivedID)+3)%4;
-                if( ident == 0)
-                    idAsByte =(byte) '0';
-                else if ( ident == 1)
-                    idAsByte =(byte) '1';
-                else if ( ident == 2)
-                    idAsByte =(byte) '2';
-                else
-                    idAsByte =(byte) '3';
-            sendACK(idAsByte);
-            System.out.printf("Re-Sending ACK # %c\n",idAsByte);
+            sendACK(receivedID);
+            System.out.printf("Re-Sending ACK # %c\n",receivedID);
             return null;
-        } else if (receivedIDasInt > trailingHand){
+        } else if ((receivedIDasInt+4) > (trailingHand+4)){
+            System.out.printf("SlidingWindowsDataLinkLayer.processFrame():\tWrong ID\n");
+            System.out.println("Expecting ID # " + trailingHand);
             System.out.println("Dropping Frame");
             return null;
         }
@@ -266,8 +259,11 @@ public class SlidingWindowsDataLinkLayer extends DataLinkLayer {
         // the right ID
         if (this.lookingForACKs){
             this.trailingHand = (this.trailingHand+1)%4;
-
             this.reSend.remove();
+            System.out.println("Ack came: The reSend Queue now contains: ");
+            for(LinkedList<Byte> i : this.reSend){
+                System.out.println(i.size());
+            }
             this.timeSinceSent.remove();
             if(this.reSend.isEmpty() && this.sendBuffer.isEmpty())
                 this.lookingForACKs = false;
@@ -321,9 +317,17 @@ public class SlidingWindowsDataLinkLayer extends DataLinkLayer {
         	if ( now - timeSinceSent.peek() >= timeoutTime){
                 timeSinceSent.remove();
                 r = this.reSend.remove();
+                System.out.println("Took r off: The reSend Queue now contains: ");
+                for(LinkedList<Byte> i : this.reSend){
+                    System.out.println(i.size());
+                }
                 this.reSend.addFirst(r);
         		this.timeSinceSent.addFirst(now);
                 System.out.println("Re-Sent Frame");
+                System.out.println("Put r back on: The reSend Queue now contains: ");
+                for(LinkedList<Byte> i : this.reSend){
+                    System.out.println(i.size());
+                }
                 transmit(convertLLtoQueue(r));
             }
         }
@@ -365,7 +369,7 @@ public class SlidingWindowsDataLinkLayer extends DataLinkLayer {
      */
     protected Queue<Byte> sendNextFrame () {
         // Only sends frames if id is within the sliding window range
-    	if(Math.abs(this.leadingHand - this.trailingHand) < 2 ){
+    	if(Math.abs(this.leadingHand - this.trailingHand) < 2){
     		this.leadingHand=(this.leadingHand+1)%4;
             return super.sendNextFrame();
         }
@@ -471,7 +475,7 @@ public class SlidingWindowsDataLinkLayer extends DataLinkLayer {
     private LinkedList<LinkedList<Byte>> reSend = new LinkedList<LinkedList<Byte>>();
 
     /** How long in milliseconds will trigger a timeout */
-    private double timeoutTime = 2000;
+    private double timeoutTime = 1000;
 
     /** The ID of the frame being expected or sent */
     private int id = 0;
