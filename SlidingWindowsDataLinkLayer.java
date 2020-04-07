@@ -170,6 +170,7 @@ public class SlidingWindowsDataLinkLayer extends DataLinkLayer {
     byte calculatedParity = calculateParity(extractedBytes);
     if (receivedParity != calculatedParity) {
         System.out.printf("SlidingWindowsDataLinkLayer.processFrame():\tDamaged frame\n");
+        System.out.println(extractedBytes.size());
         return null;
     }
 
@@ -230,7 +231,9 @@ public class SlidingWindowsDataLinkLayer extends DataLinkLayer {
         Date d = new Date();
     	
         // Stores this frame in case it needs to be resent
-        this.reSend.add(convertQueuetoLL(frame));
+        synchronized(this.reSend){
+            this.reSend.add(convertQueuetoLL(frame));
+        }
 
         // Grabs the timestamp of when this frame was sent 
     	this.timeSinceSent.add(d.getTime());
@@ -258,15 +261,24 @@ public class SlidingWindowsDataLinkLayer extends DataLinkLayer {
         // processFrame() has already checked if this frame has 
         // the right ID
         if (this.lookingForACKs){
-            this.trailingHand = (this.trailingHand+1)%4;
-            this.reSend.remove();
-            System.out.println("Ack came: The reSend Queue now contains: ");
-            for(LinkedList<Byte> i : this.reSend){
-                System.out.println(i.size());
+            synchronized(this.reSend){
+                this.trailingHand = (this.trailingHand+1)%4;
+                this.reSend.remove();
+                /*
+                System.out.println("Ack came: The reSend Queue now contains: ");
+                for(LinkedList<Byte> i : this.reSend){
+                    for( Byte j : i){
+                        System.out.printf("%c\n",j);
+                    }
+                    System.out.println("_________");
+                }
+                */
+                if (this.resending == true && this.reSend.isEmpty())
+                    this.resending = false;
+                this.timeSinceSent.remove();
+                if(this.reSend.isEmpty() && this.sendBuffer.isEmpty())
+                    this.lookingForACKs = false;
             }
-            this.timeSinceSent.remove();
-            if(this.reSend.isEmpty() && this.sendBuffer.isEmpty())
-                this.lookingForACKs = false;
         } 
 
         // If the host is not looking for an ACK
@@ -311,24 +323,43 @@ public class SlidingWindowsDataLinkLayer extends DataLinkLayer {
     protected void checkTimeout () {
     	long now;
     	Date d = new Date();
-        LinkedList<Byte> r;
-        if(!this.reSend.isEmpty()){
-        	now = d.getTime();
-        	if ( now - timeSinceSent.peek() >= timeoutTime){
-                timeSinceSent.remove();
-                r = this.reSend.remove();
-                System.out.println("Took r off: The reSend Queue now contains: ");
-                for(LinkedList<Byte> i : this.reSend){
-                    System.out.println(i.size());
+        LinkedList<Byte> r = new LinkedList<Byte>();
+        synchronized(this.reSend){
+            if(!this.reSend.isEmpty()){
+            	now = d.getTime();
+            	if ( now - timeSinceSent.peek() >= timeoutTime){
+                    this.resending = true;
+                    this.timeSinceSent.remove();
+                    this.timeSinceSent.addFirst(now);
+                    /*
+                    System.out.println("Timeout occured: resend queue pre-resend");
+                    System.out.println(" The reSend Queue now contains: ");
+                    for(LinkedList<Byte> i : this.reSend){
+                    for( Byte j : i){
+                        System.out.printf("%c\n",j);
+                    }
+                    System.out.println("_________");
+                    }
+                    */
+
+                    for(Byte x : this.reSend.peek()){
+                        r.add(x);
+                    }
+                    transmit(convertLLtoQueue(this.reSend.peek()));
+                    this.reSend.remove();
+                    this.reSend.addFirst(r);
+                    System.out.println("Re-Sent Frame");
+
+                    /*
+                    System.out.println(" The reSend Queue now contains: ");
+                    for(LinkedList<Byte> i : this.reSend){
+                    for( Byte j : i){
+                        System.out.printf("%c\n",j);
+                    }
+                    System.out.println("_________");
+                    }
+                    */
                 }
-                this.reSend.addFirst(r);
-        		this.timeSinceSent.addFirst(now);
-                System.out.println("Re-Sent Frame");
-                System.out.println("Put r back on: The reSend Queue now contains: ");
-                for(LinkedList<Byte> i : this.reSend){
-                    System.out.println(i.size());
-                }
-                transmit(convertLLtoQueue(r));
             }
         }
     } // checkTimeout ()
@@ -369,7 +400,7 @@ public class SlidingWindowsDataLinkLayer extends DataLinkLayer {
      */
     protected Queue<Byte> sendNextFrame () {
         // Only sends frames if id is within the sliding window range
-    	if(Math.abs(this.leadingHand - this.trailingHand) < 2){
+    	if(Math.abs(this.leadingHand - this.trailingHand) < 2 && this.resending ==false){
     		this.leadingHand=(this.leadingHand+1)%4;
             return super.sendNextFrame();
         }
@@ -472,7 +503,7 @@ public class SlidingWindowsDataLinkLayer extends DataLinkLayer {
     private LinkedList<Long> timeSinceSent = new LinkedList<Long>();
 
     /** The most recently sent frames, stored in case of resend */
-    private LinkedList<LinkedList<Byte>> reSend = new LinkedList<LinkedList<Byte>>();
+    private volatile LinkedList<LinkedList<Byte>> reSend = new LinkedList<LinkedList<Byte>>();
 
     /** How long in milliseconds will trigger a timeout */
     private double timeoutTime = 1000;
@@ -483,6 +514,8 @@ public class SlidingWindowsDataLinkLayer extends DataLinkLayer {
     private int leadingHand = 0;
 
     private int trailingHand = 0;
+
+    private boolean resending = false;
 
 
 
