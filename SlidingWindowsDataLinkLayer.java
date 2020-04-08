@@ -23,7 +23,6 @@ public class SlidingWindowsDataLinkLayer extends DataLinkLayer {
 // =============================================================================
 
 
- 
     // =========================================================================
     /**
      * Embed a raw sequence of bytes into a framed sequence.
@@ -34,16 +33,18 @@ public class SlidingWindowsDataLinkLayer extends DataLinkLayer {
     protected Queue<Byte> createFrame (Queue<Byte> data) {
 
     // ID added here so that it will be accounted for
-    // when the parity is calculated
+    // when the parity is calculated this also increments
+    // the ID forward 1 so that the next frame will be of
+    // the next ID. 
     byte idAsByte;
     if( this.id == 0)
-        idAsByte =(byte) '0';
+        idAsByte = (byte) '0';
     else if ( this.id == 1)
-        idAsByte =(byte) '1';
+        idAsByte = (byte) '1';
     else if ( this.id == 2)
-        idAsByte =(byte) '2';
+        idAsByte = (byte) '2';
     else
-        idAsByte =(byte) '3';
+        idAsByte = (byte) '3';
     data.add(idAsByte);
     System.out.println("Sending Frame # " + id);
     this.id = (this.id+1)%4;
@@ -62,8 +63,8 @@ public class SlidingWindowsDataLinkLayer extends DataLinkLayer {
 	    // If the current data byte is itself a metadata tag, then precede
 	    // it with an escape tag.
 	    if ((currentByte == startTag) ||
-		(currentByte == stopTag) ||
-		(currentByte == escapeTag)) {
+		    (currentByte == stopTag)  ||
+		    (currentByte == escapeTag)) {
 
 		framingData.add(escapeTag);
 
@@ -81,7 +82,7 @@ public class SlidingWindowsDataLinkLayer extends DataLinkLayer {
 	framingData.add(stopTag);
 
 	return framingData;
-	
+
     } // createFrame ()
     // =========================================================================
 
@@ -174,7 +175,7 @@ public class SlidingWindowsDataLinkLayer extends DataLinkLayer {
     }
 
 
-    // The second to last byte is the id of the frame. If it does fall within the window
+    // The second to last byte is the id of the frame. If it does not fall within the window
     // of acceptable IDs then return null
     byte receivedID = extractedBytes.remove(extractedBytes.size() - 1);
     System.out.printf("Received ID # %c\n",receivedID);
@@ -195,7 +196,6 @@ public class SlidingWindowsDataLinkLayer extends DataLinkLayer {
                (receivedIDasInt <= leadingHand))      ){
 
             System.out.printf("SlidingWindowsDataLinkLayer.processFrame():\tWrong ID\n");
-            
             System.out.println("Expecting IDs between " + trailingHand + " and " + leadingHand);
             return null;
         }
@@ -220,7 +220,6 @@ public class SlidingWindowsDataLinkLayer extends DataLinkLayer {
     // =========================================================================
 
 
-
     // =========================================================================
     /**
      * After sending a frame, do any bookkeeping (e.g., buffer the frame in case
@@ -234,7 +233,6 @@ public class SlidingWindowsDataLinkLayer extends DataLinkLayer {
         // Stores this frame in case it needs to be resent
         this.reSend.add(convertQueuetoLL(frame));
         
-
         // Grabs the timestamp of when this frame was sent 
     	this.timeSinceSent.add(d.getTime());
 
@@ -255,11 +253,8 @@ public class SlidingWindowsDataLinkLayer extends DataLinkLayer {
      * @param frame The frame of bytes received.
      */
     protected void finishFrameReceive (Queue<Byte> frame) {
-        // In this protocol, if the host is looking for an ACK,
-        // anything it recieves is an ACK, so upon recieving an ACK
-        // it reports that it is no longer looking for an ACK. Note: 
-        // processFrame() has already checked if this frame has 
-        // the right ID
+        // Upon receiving an ACK, the sender moves its trailing hand forward and removes
+        // queued up frame from the resend queue. 
         if (this.lookingForACKs){
             this.trailingHand = (this.trailingHand+1)%4;
             this.reSend.remove();
@@ -281,19 +276,22 @@ public class SlidingWindowsDataLinkLayer extends DataLinkLayer {
 	        }
 
 	        client.receive(deliverable);
+            // Receiver moves leading hand upon receving a frame
             this.leadingHand = (this.leadingHand+1)%4;
 
 	        // send ACK
             byte ack;
             if( this.id == 0)
-                ack =(byte) '0';
+                ack = (byte) '0';
             else if ( this.id == 1)
-                ack =(byte) '1';
+                ack = (byte) '1';
             else if ( this.id == 2)
-                ack =(byte) '2';
+                ack = (byte) '2';
             else
-                ack =(byte) '3';
+                ack = (byte) '3';
 	        sendACK(ack);
+
+            // Receiver moves trailing hand upon sending ACK
             this.trailingHand = (this.trailingHand+1)%4;
             System.out.printf("Sending ACK # %c\n",ack);
             this.id = (this.id+1)%4;
@@ -307,7 +305,7 @@ public class SlidingWindowsDataLinkLayer extends DataLinkLayer {
     /**
      * Determine whether a timeout should occur and be processed.  This method
      * is called regularly in the event loop, and should check whether too much
-     * time has passed since some kind of response is expected.
+     * time has passed since some kind of response is expected. 
      */
     protected void checkTimeout () {
     	long now;
@@ -328,6 +326,7 @@ public class SlidingWindowsDataLinkLayer extends DataLinkLayer {
                 System.out.println("Re-Sent Frame");
             }
         }
+
     } // checkTimeout ()
     // =========================================================================
 
@@ -335,7 +334,9 @@ public class SlidingWindowsDataLinkLayer extends DataLinkLayer {
     // =========================================================================
     /**
      * Given an ID, this method sends an acknowledgement of the frame with that ID
-     * to the other host     
+     * to the other host  
+     *
+     * @param identify The ID of the ack to be sent   
      */
     protected void sendACK(byte identify){
         Queue<Byte> data = new LinkedList<Byte>();
@@ -351,6 +352,7 @@ public class SlidingWindowsDataLinkLayer extends DataLinkLayer {
 
         // Send the ACK
         transmit(framedACK);
+
     } // sendACK ()
     // =========================================================================
 
@@ -360,12 +362,15 @@ public class SlidingWindowsDataLinkLayer extends DataLinkLayer {
     // =========================================================================
     /**
      * Extract the next frame-worth of data from the sending buffer, frame it,
-     * and then send it.
-     *
+     * and then send it. If a frame times out and frames are being resent, this 
+     * protocol does not send new frames becuase they will be dropped and likely 
+     * be out of order. Instead, this protocol waits for the sender and receiver 
+     * to get back in sync to start sending new frames again.  
      * @return the frame of bytes transmitted.
      */
     protected Queue<Byte> sendNextFrame () {
-        // Only sends frames if id is within the sliding window range
+        // Only sends frames if id is within the sliding window range. 
+
     	if(Math.abs(this.leadingHand - this.trailingHand) < 2 && this.resending ==false){
     		this.leadingHand=(this.leadingHand+1)%4;
             return super.sendNextFrame();
@@ -373,6 +378,7 @@ public class SlidingWindowsDataLinkLayer extends DataLinkLayer {
     	else{
             return null;
         }
+
     }// sendNextFrame ()
     // =========================================================================
 
@@ -428,8 +434,8 @@ public class SlidingWindowsDataLinkLayer extends DataLinkLayer {
      * linked list of byte linked lists and wrote this to convert the byte linked lists
      * into queues so they can be used by the transmit() method. 
      *
-     * @param index The index of the position up to which the bytes are to be
-     *              removed.
+     * @param frame A frame to be converted from LL to Queue
+     * @return The frame in Queue form
      */
     private Queue<Byte> convertLLtoQueue(LinkedList<Byte> frame){
         Queue<Byte> f = new LinkedList<Byte>();
@@ -438,9 +444,20 @@ public class SlidingWindowsDataLinkLayer extends DataLinkLayer {
             f.add(frame.remove());
         }
         return f;
-    }
+    } // convertLLtoQueue()
+    // =========================================================================
 
 
+    // =========================================================================
+    /**
+     * I wanted to store frames to be resent in a queue of byte queues but was 
+     * unable to figure out how/ dont think you can, so I stored them in a 
+     * linked list of byte linked lists and wrote this to convert the byte queues
+     * into linked lists. 
+     *
+     * @param frame A frame to be converted from Queue to LL
+     * @return The frame in LL form
+     */
     private LinkedList<Byte> convertQueuetoLL(Queue<Byte> frame){
         LinkedList<Byte> f = new LinkedList<Byte> ();
         while(!frame.isEmpty()){
@@ -448,7 +465,9 @@ public class SlidingWindowsDataLinkLayer extends DataLinkLayer {
         }
         return f;
 
-    }
+    } // convertQueuetoLL()
+    // =========================================================================
+
 
     // =========================================================================
     // DATA MEMBERS
@@ -477,12 +496,15 @@ public class SlidingWindowsDataLinkLayer extends DataLinkLayer {
     /** The ID of the frame being expected or sent */
     private int id = 0;
 
+    /** The leading hand for the slinding windows protocol */
     private int leadingHand = 0;
 
+    /** The trailing hand for the slinding windows protocol */
     private int trailingHand = 0;
 
+    /** A boolean to keep track of if resending is occuring, telling 
+      * the sender to stop sending new frames until resending is done. */
     private boolean resending = false;
-
 
 
     // =========================================================================
